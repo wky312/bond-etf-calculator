@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-TW" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>債券 ETF 情境損益試算</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=IBM+Plex+Mono:wght@400;600&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f5f2eb;--bg2:#ede9e0;--bg3:#e4dfd4;
+    --surface:#ffffff;--surface2:#faf8f4;
+    --border:#d4cfc4;--border2:#c8c2b5;
+    --text:#1a1814;--text2:#4a4640;--text3:#7a756e;--text4:#a09a92;
+    --accent:#b5531a;--accent2:#d4691f;--accent-bg:rgba(181,83,26,.08);
+    --green:#1a6b3a;--green-bg:rgba(26,107,58,.08);
+    --red:#8b1a1a;--red-bg:rgba(139,26,26,.08);
+    --blue:#1a3f8b;--blue-bg:rgba(26,63,139,.06);
+    --shadow:0 2px 16px rgba(0,0,0,.07);
+    --radius:14px;--tr:.3s cubic-bezier(.4,0,.2,1);
+  }
+  [data-theme="dark"] {
+    --bg:#0d0f13;--bg2:#131619;--bg3:#191d22;
+    --surface:#1c2028;--surface2:#222731;
+    --border:#2a3040;--border2:#333d50;
+    --text:#eceef2;--text2:#b0b8c8;--text3:#7a8499;--text4:#4a5568;
+    --accent:#e8874a;--accent2:#f0a060;--accent-bg:rgba(232,135,74,.10);
+    --green:#4ade80;--green-bg:rgba(74,222,128,.08);
+    --red:#f87171;--red-bg:rgba(248,113,113,.08);
+    --blue:#60a5fa;--blue-bg:rgba(96,165,250,.08);
+    --shadow:0 2px 16px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Noto Serif TC',serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background var(--tr),color var(--tr);line-height:1.6}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 20px 80px}
+
+  /* Header */
+  header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;gap:16px;flex-wrap:wrap}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(24px,4vw,36px);font-weight:700;color:var(--text);line-height:1.2;margin-bottom:8px}
+  .subtitle{font-size:13px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+
+  /* Toggle */
+  .toggle{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:100px;padding:7px 16px;cursor:pointer;transition:all var(--tr);box-shadow:var(--shadow);flex-shrink:0;margin-top:4px}
+  .toggle:hover{border-color:var(--accent)}
+  .ttrack{width:36px;height:20px;background:var(--bg3);border-radius:100px;position:relative;transition:background var(--tr)}
+  [data-theme="dark"] .ttrack{background:var(--accent)}
+  .tthumb{width:14px;height:14px;background:var(--surface);border-radius:50%;position:absolute;top:3px;left:3px;transition:transform var(--tr);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+  [data-theme="dark"] .tthumb{transform:translateX(16px)}
+  .tlabel{font-size:12px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+
+  /* Data strip */
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:24px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .clabel{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text4);font-family:'IBM Plex Mono',monospace;margin-bottom:8px}
+  .cvalue{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--accent);line-height:1;margin-bottom:6px}
+  .csub{font-size:11px;color:var(--text3)}
+  .csrc{font-size:10px;color:var(--text4);margin-top:6px;display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace}
+  .ldot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite;display:inline-block;flex-shrink:0}
+  .sdot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;flex-shrink:0}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* Notice */
+  .notice{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:var(--radius);padding:14px 20px;margin-bottom:24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .ntxt{font-size:12px;color:var(--text3);line-height:1.6;flex:1;min-width:200px}
+  .ntxt b{color:var(--text2)}
+  .ntxt a{color:var(--blue);text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:11px;border-bottom:1px solid transparent;transition:border-color .2s}
+  .ntxt a:hover{border-color:var(--blue)}
+
+  /* Params */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px 24px 20px;margin-bottom:24px;box-shadow:var(--shadow)}
+  .phead{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:8px}
+  .ptitle{font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px;font-weight:600}
+  .pnote{font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',monospace}
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:28px}
+  .plabel{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:space-between}
+  .pval{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--accent)}
+
+  /* Slider */
+  .strack{position:relative;height:6px;background:var(--bg3);border-radius:3px;margin:10px 0 6px}
+  .sfill{position:absolute;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;pointer-events:none}
+  input[type=range]{position:absolute;top:-7px;left:0;right:0;width:100%;-webkit-appearance:none;background:transparent;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--surface);border:2px solid var(--accent);box-shadow:0 1px 6px rgba(0,0,0,.2);transition:transform .15s,box-shadow .15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2);box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  input[type=range]::-webkit-slider-runnable-track{background:transparent}
+  .sticks{display:flex;justify-content:space-between;font-size:10px;color:var(--text4);font-family:'IBM Plex Mono',monospace;margin-top:2px}
+
+  /* Duration presets */
+  .dbtns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .dbtn{font-size:11px;font-family:'IBM Plex Mono',monospace;padding:5px 11px;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);cursor:pointer;transition:all .2s;line-height:1.5;text-align:center}
+  .dbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .dbtn.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);font-weight:600}
+  .mdnote{font-size:11px;color:var(--text4);margin-top:6px;font-family:'IBM Plex Mono',monospace}
+
+  /* Results table */
+  .rpanel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);margin-bottom:24px}
+  .rhead{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+  .cols,.row{display:grid;grid-template-columns:2fr 90px 90px 110px 160px 80px;gap:8px;align-items:center;padding:0 24px}
+  .cols{padding-top:10px;padding-bottom:10px;border-bottom:1px solid var(--border);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text4);font-family:'IBM Plex Mono',monospace}
+  .cr{text-align:right}.cc{text-align:center}
+  .row{padding-top:14px;padding-bottom:14px;border-bottom:1px solid var(--border);transition:background var(--tr)}
+  .row:last-child{border-bottom:none}
+  .row:hover{background:var(--surface2)}
+  .row.sep{background:var(--bg2);border-top:2px solid var(--border2);padding-top:7px;padding-bottom:7px}
+  .row.base{background:var(--accent-bg);border-left:3px solid var(--accent)}
+  .row.base:hover{background:var(--accent-bg)}
+  .base-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:var(--accent);color:#fff;padding:2px 6px;border-radius:4px;margin-left:8px;vertical-align:middle}
+  .seplabel{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text4);font-family:'IBM Plex Mono',monospace;grid-column:1/-1}
+  .sname{font-size:14px;color:var(--text)}
+  .snote{font-size:11px;color:var(--text4);margin-top:2px;font-family:'IBM Plex Mono',monospace}
+  .sdot2{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px;vertical-align:middle}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:14px;text-align:right}
+  .monolg{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;text-align:right}
+  .pos{color:var(--red)}.neg{color:var(--green)}
+
+  /* Bar */
+  .barcell{display:flex;align-items:center}
+  .bneg{width:70px;display:flex;justify-content:flex-end;align-items:center}
+  .bpos{width:70px;display:flex;justify-content:flex-start;align-items:center}
+  .bctr{width:2px;height:20px;background:var(--border2);flex-shrink:0}
+  .bseg{height:10px;border-radius:3px;transition:width .4s cubic-bezier(.4,0,.2,1);max-width:70px}
+
+  /* Prob badge */
+  .pbadge{font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:var(--blue-bg);color:var(--blue);display:inline-block;white-space:nowrap}
+  .pnone{color:var(--text4);font-size:12px;font-family:'IBM Plex Mono',monospace;text-align:center}
+
+  /* Expected */
+  .ebox{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .ebox::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2),var(--blue))}
+  .eval{font-family:'IBM Plex Mono',monospace;font-size:44px;font-weight:600;line-height:1}
+
+  /* Base case box */
+  .basebox{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:20px 28px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .basebox .eval{font-size:36px}
+
+  /* FedWatch table */
+  .fw-table{width:100%;border-collapse:collapse;margin-top:14px;font-family:'IBM Plex Mono',monospace;font-size:12px}
+  .fw-table th{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text4);padding:8px 10px;text-align:center;border-bottom:2px solid var(--border2);font-weight:400}
+  .fw-table th:first-child{text-align:left}
+  .fw-table td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--border);color:var(--text2)}
+  .fw-table td:first-child{text-align:left;color:var(--text);font-weight:600}
+  .fw-table tr:last-child td{border-bottom:none}
+  .fw-table .fw-bar-cell{width:100%;display:flex;align-items:center;gap:6px}
+  .fw-table .fw-bar{height:14px;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--accent2));min-width:2px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+  .fw-table .fw-pct{white-space:nowrap;min-width:42px;text-align:right}
+  .fw-table .fw-range{color:var(--text3);font-size:11px}
+  .fw-table .fw-highlight td{background:var(--accent-bg)}
+  .fw-table .fw-highlight td:first-child{border-left:3px solid var(--accent)}
+
+  /* FedWatch editor */
+  .fw-editor{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:24px;box-shadow:var(--shadow);display:none}
+  .fw-editor.open{display:block}
+  .fw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:14px}
+  .fw-item{display:flex;flex-direction:column;gap:4px}
+  .fw-item label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text4);font-family:'IBM Plex Mono',monospace}
+  .fw-item input{font-family:'IBM Plex Mono',monospace;font-size:14px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);width:100%;text-align:center}
+  .fw-item input:focus{outline:none;border-color:var(--accent)}
+  .fw-actions{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap}
+  .fw-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 16px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;transition:all .2s}
+  .fw-btn:hover{opacity:.85}
+  .fw-btn.sec{background:transparent;color:var(--accent)}
+  .fw-btn.sec:hover{background:var(--accent-bg)}
+  .fw-status{font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',monospace}
+  .fw-toggle-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);cursor:pointer;transition:all .2s;flex-shrink:0}
+  .fw-toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* Sources */
+  .src{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px}
+  .srctitle{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text4);font-family:'IBM Plex Mono',monospace;margin-bottom:14px}
+  .srcrow{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;font-size:12px}
+  .badge{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;flex-shrink:0;margin-top:1px}
+  .blive{background:rgba(34,197,94,.12);color:#22c55e}
+  .bstatic{background:var(--bg3);color:var(--text4)}
+  .srctext{color:var(--text3);line-height:1.6}
+  .srctext a{color:var(--accent);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .2s}
+  .srctext a:hover{border-color:var(--accent)}
+  code{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--bg3);padding:1px 5px;border-radius:3px}
+  .disc{margin-top:16px;padding:12px 16px;background:var(--bg3);border-radius:8px;font-size:11px;color:var(--text4);line-height:1.7}
+
+  /* Responsive */
+  @media(max-width:680px){
+    .cols,.row{grid-template-columns:1.5fr 70px 90px 120px 60px}
+    .cols>:nth-child(2),.row>:nth-child(2){display:none}
+  }
+  @media(max-width:480px){
+    .cols,.row{grid-template-columns:1fr 80px 110px}
+    .cols>:nth-child(2),.cols>:nth-child(3),.cols>:nth-child(5),.cols>:nth-child(6),
+    .row>:nth-child(2),.row>:nth-child(3),.row>:nth-child(5),.row>:nth-child(6){display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow">Bond ETF Scenario Analyzer</div>
+      <h1>債券 ETF 持有損益試算</h1>
+      <div class="subtitle">2026年4月 → 12月 &nbsp;·&nbsp; 持有 9 個月</div>
+      <div class="disc" style="margin-top:10px;padding:8px 12px;max-width:600px">⚠ 本工具僅供教育及情境分析，不構成投資建議。實際報酬受多種市場因素影響，投資前請諮詢專業顧問。</div>
+    </div>
+    <button class="toggle" onclick="toggleTheme()">
+      <span class="tlabel" id="tlabel">☾ 夜間</span>
+      <div class="ttrack"><div class="tthumb"></div></div>
+    </button>
+  </header>
+
+  <!-- Data Strip -->
+  <div class="strip">
+    <div class="card">
+      <div class="clabel">當前聯邦基金利率</div>
+      <div class="cvalue" id="card-rate">—</div>
+      <div class="csub" id="card-range">目標區間載入中</div>
+      <div class="csrc"><span class="ldot"></span>FRED API 自動抓取</div>
+    </div>
+    <div class="card">
+      <div class="clabel">點陣圖中位數（2026底）</div>
+      <div class="cvalue">降息 1碼</div>
+      <div class="csub">目標區間 3.25–3.50%</div>
+      <div class="csrc"><span class="sdot"></span>Fed SEP · 2025年12月</div>
+    </div>
+    <div class="card">
+      <div class="clabel">FedWatch 最高機率情境</div>
+      <div class="cvalue" id="card-fw-top">降息 1碼</div>
+      <div class="csub" id="card-fw-sub">年底累計機率 ~34.5%</div>
+      <div class="csrc"><span id="fw-dot" class="sdot"></span><span id="fw-src-label">CME FedWatch</span></div>
+    </div>
+    <div class="card">
+      <div class="clabel">FRED 數據更新</div>
+      <div class="cvalue" id="card-date" style="font-size:16px">—</div>
+      <div class="csub">FEDFUNDS 月度數據</div>
+      <div class="csrc"><span class="ldot"></span>St. Louis Fed</div>
+    </div>
+  </div>
+
+  <!-- FedWatch Notice -->
+  <div class="notice">
+    <span style="font-size:18px;flex-shrink:0" id="fw-icon">📡</span>
+    <div class="ntxt" id="fw-notice">
+      <b>CME FedWatch 機率</b>正在自動抓取中...
+    </div>
+    <button class="fw-toggle-btn" onclick="toggleFwEditor()">手動編輯機率</button>
+  </div>
+
+  <!-- FedWatch Probability Table -->
+  <div class="panel" style="margin-bottom:24px">
+    <div class="phead">
+      <div class="ptitle">CME FedWatch 年底利率機率分布</div>
+      <div class="pnote">對照 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank" style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent)">CME FedWatch Tool ↗</a></div>
+    </div>
+    <table class="fw-table">
+      <thead>
+        <tr>
+          <th>情境</th>
+          <th>目標利率區間</th>
+          <th>變動幅度</th>
+          <th style="text-align:left;padding-left:16px">機率</th>
+        </tr>
+      </thead>
+      <tbody id="fw-table-body"></tbody>
+    </table>
+  </div>
+
+  <!-- FedWatch Editor -->
+  <div class="fw-editor" id="fw-editor">
+    <div class="ptitle" style="margin-bottom:4px">手動更新 FedWatch 機率（%）</div>
+    <div style="font-size:11px;color:var(--text4);margin-bottom:4px;font-family:'IBM Plex Mono',monospace">
+      請至 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank" style="color:var(--accent)">CME FedWatch Tool ↗</a> 查看最新機率後填入
+    </div>
+    <div class="fw-grid">
+      <div class="fw-item"><label>不降息</label><input type="number" id="fw-in-0" step="0.1" min="0" max="100"></div>
+      <div class="fw-item"><label>降息 1 碼</label><input type="number" id="fw-in-25" step="0.1" min="0" max="100"></div>
+      <div class="fw-item"><label>降息 2 碼</label><input type="number" id="fw-in-50" step="0.1" min="0" max="100"></div>
+      <div class="fw-item"><label>降息 3 碼</label><input type="number" id="fw-in-75" step="0.1" min="0" max="100"></div>
+      <div class="fw-item"><label>降息 4 碼</label><input type="number" id="fw-in-100" step="0.1" min="0" max="100"></div>
+      <div class="fw-item"><label>降息 5 碼</label><input type="number" id="fw-in-125" step="0.1" min="0" max="100"></div>
+    </div>
+    <div class="fw-actions">
+      <button class="fw-btn" onclick="applyFwManual()">套用並儲存</button>
+      <button class="fw-btn sec" onclick="toggleFwEditor()">取消</button>
+      <span class="fw-status" id="fw-save-status"></span>
+    </div>
+  </div>
+
+  <!-- Params -->
+  <div class="panel">
+    <div class="phead">
+      <div class="ptitle">ETF 參數設定</div>
+      <div class="pnote" id="pnote">YTM 6.0% · 費用 0.80% · Duration 9.0年 · 9個月</div>
+    </div>
+    <div class="pgrid">
+
+      <div>
+        <div class="plabel"><span>殖利率 YTM</span><span class="pval" id="ytm-v">6.0%</span></div>
+        <div class="strack"><div class="sfill" id="ytm-f"></div><input type="range" id="ytm-s" min="1" max="15" step="0.1" value="6" oninput="go()"></div>
+        <div class="sticks"><span>1%</span><span>5%</span><span>10%</span><span>15%</span></div>
+      </div>
+
+      <div>
+        <div class="plabel"><span>管理費＋信託保管費（年）</span><span class="pval" id="fee-v">0.80%</span></div>
+        <div class="strack"><div class="sfill" id="fee-f"></div><input type="range" id="fee-s" min="0" max="2" step="0.05" value="0.8" oninput="go()"></div>
+        <div class="sticks"><span>0%</span><span>0.5%</span><span>1%</span><span>2%</span></div>
+      </div>
+
+      <div>
+        <div class="plabel"><span>存續期間 Duration</span><span class="pval" id="dur-v">9.0年</span></div>
+        <div class="strack"><div class="sfill" id="dur-f"></div><input type="range" id="dur-s" min="0.5" max="30" step="0.5" value="9" oninput="go()"></div>
+        <div class="sticks"><span>0.5Y</span><span>10Y</span><span>20Y</span><span>30Y</span></div>
+        <div class="mdnote" id="mdnote">修正存續期 ≈ 8.49 年</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="rpanel">
+    <div class="rhead">
+      <div class="ptitle">情境分析結果</div>
+      <div class="pnote" id="rnote">Duration 9.0年 · 持有9個月</div>
+    </div>
+    <div class="cols">
+      <div>情境</div>
+      <div class="cr">利息收入</div>
+      <div class="cr">價格損益</div>
+      <div class="cr">總損益</div>
+      <div class="cc">損益視覺化</div>
+      <div class="cc">FedWatch</div>
+    </div>
+    <div id="tbody"></div>
+  </div>
+
+  <!-- Base Case -->
+  <div class="basebox">
+    <div>
+      <div class="ptitle" style="margin-bottom:6px">Base Case（點陣圖中位數：降息一碼）</div>
+      <div style="font-size:12px;color:var(--text4)">Fed SEP 2025年12月預測，2026年底目標利率 3.25–3.50%</div>
+    </div>
+    <div class="eval" id="base-val">—</div>
+  </div>
+
+  <!-- Expected -->
+  <div class="ebox">
+    <div>
+      <div class="ptitle" style="margin-bottom:6px">機率加權預期報酬</div>
+      <div style="font-size:12px;color:var(--text4)">以 FedWatch 各降息情境機率加權，不含升息尾端</div>
+    </div>
+    <div class="eval" id="eval">—</div>
+  </div>
+
+  <!-- Sources -->
+  <div class="src">
+    <div class="srctitle">數據來源</div>
+    <div class="srcrow">
+      <span class="badge blive">LIVE</span>
+      <div class="srctext"><b>聯邦基金利率</b> — 透過 <a href="https://fred.stlouisfed.org/series/FEDFUNDS" target="_blank">FRED API（St. Louis Fed）</a> 自動抓取，系列代碼 <code>FEDFUNDS</code>，月度更新，無需 API Key。</div>
+    </div>
+    <div class="srcrow">
+      <span class="badge blive" id="fw-badge">LIVE</span>
+      <div class="srctext"><b>CME FedWatch 機率</b> — <span id="fw-src-desc">自動抓取中...</span> 最新機率請至 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a></div>
+    </div>
+    <div class="srcrow">
+      <span class="badge bstatic">固定</span>
+      <div class="srctext"><b>Fed 點陣圖</b> — 取自 <a href="https://www.federalreserve.gov/monetarypolicy/fomcprojtabl20251210.htm" target="_blank">2025年12月10日 FOMC SEP ↗</a>，中位數預測 2026年底降息1碼至 3.25–3.50%。下次更新：2026年3月18日。</div>
+    </div>
+    <div class="srcrow">
+      <span class="badge bstatic">模型</span>
+      <div class="srctext">價格損益 = −修正存續期 × (實際利率變動 − 點陣圖中位數預期)；利息收入 = (YTM − 管理費 − 信託保管費) × 9/12。Base Case 為點陣圖中位數（降息一碼），價格損益以偏離 Base Case 計算。簡化模型，未含凸性修正、信用利差、匯率風險。</div>
+    </div>
+    <div class="disc">⚠ 本工具僅供教育及情境分析，不構成投資建議。實際報酬受多種市場因素影響，投資前請諮詢專業顧問。</div>
+  </div>
+
+</div>
+<script>
+const HOLD=9/12,MBAR=10;
+
+// Default FedWatch probabilities — CME FedWatch 2026/3/6 snapshot (Dec 9 meeting)
+// 350-375(不變):15.5%, 325-350(降1碼):34.5%, 300-325(降2碼):31.2%,
+// 275-300(降3碼):14.6%, 250-275(降4碼):3.7%, 225-250(降5碼):0.5%
+const FW_DEFAULT={0:15.5,25:34.5,50:31.2,75:14.6,100:3.7,125:0.5};
+const FW_SNAPSHOT_DATE='2026-03-06';
+let FW=Object.assign({},FW_DEFAULT);
+let fwLive=false;
+
+// Scenarios: ordered from most cuts (top) to most hikes (bottom)
+const SC=[
+  {bps:-125,label:'降息五碼', note:'極度鴿派',       g:'cut',fw:125},
+  {bps:-100,label:'降息四碼', note:'積極降息',        g:'cut',fw:100},
+  {bps:-75, label:'降息三碼', note:'偏鴿派情境',     g:'cut',fw:75},
+  {bps:-50, label:'降息二碼', note:'市場最高機率',    g:'cut',fw:50},
+  {bps:-25, label:'降息一碼', note:'點陣圖中位數',    g:'cut',fw:25,base:true},
+  {bps:0,   label:'維持利率不變',note:'高通膨/強就業情境',g:'hold',fw:0},
+  {bps:25,  label:'升息一碼', note:'超預期轉向',      g:'hike'},
+  {bps:50,  label:'升息二碼', note:'極度鷹派',        g:'hike'},
+  {bps:75,  label:'升息三碼', note:'尾端鷹派風險',    g:'hike'},
+];
+const DCOL={cut:'#60a5fa',hold:'#94a3b8',hike:'#f87171'};
+const DSEP={cut:'▼ 降息情境（FedWatch 預期）',hold:'─ 持平情境',hike:'▲ 升息情境（尾端風險）'};
+let S={ytm:6,fee:.8,dur:9};
+
+function toggleTheme(){
+  const d=document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme',d?'light':'dark');
+  document.getElementById('tlabel').textContent=d?'☀ 日間':'☾ 夜間';
+}
+
+// --- FRED API ---
+async function fetchFred(){
+  const url='https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key=4ece56db30dab72a6c8b3abe1db7dc6c&file_type=json&sort_order=desc&limit=1';
+  try{
+    const d=await(await fetch(url)).json();
+    const obs=d.observations[0];
+    const v=parseFloat(obs.value);
+    const hi=Math.ceil(v*4)/4,lo=hi-.25;
+    currentRateHi=hi; currentRateLo=lo;
+    document.getElementById('card-rate').textContent=v.toFixed(2)+'%';
+    document.getElementById('card-range').textContent=`目標區間 ${lo.toFixed(2)}–${hi.toFixed(2)}%`;
+    renderFwTable(); // re-render with actual rate
+    const dt=new Date(obs.date);
+    document.getElementById('card-date').textContent=dt.toLocaleDateString('zh-TW',{year:'numeric',month:'long'});
+  }catch(_){
+    document.getElementById('card-rate').textContent='3.63%';
+    document.getElementById('card-range').textContent='目標區間 3.50–3.75%';
+    document.getElementById('card-date').textContent='2026年1月';
+  }
+}
+
+// --- CME FedWatch Auto-Fetch ---
+async function fetchFedWatch(){
+  // Try loading from localStorage first
+  const cached=localStorage.getItem('fw_data');
+  if(cached){
+    try{
+      const c=JSON.parse(cached);
+      if(c.ts && Date.now()-c.ts < 12*60*60*1000){
+        FW=c.probs;
+        updateFwUI(true, c.source||'localStorage 快取', new Date(c.ts));
+        updateFwCard();
+        renderFwTable();
+        go();
+        return;
+      }
+    }catch(_){}
+  }
+
+  // Try multiple CME API endpoints via CORS proxies
+  const cmeUrls=[
+    'https://www.cmegroup.com/services/fedWatchTool/v2/CMEFedWatchTool.json',
+    'https://www.cmegroup.com/CmeWS/mvc/FedWatch/FedWatchData',
+  ];
+  const proxies=[
+    url=>'https://api.allorigins.win/get?url='+encodeURIComponent(url),
+    url=>'https://corsproxy.io/?url='+encodeURIComponent(url),
+  ];
+
+  for(const cmeUrl of cmeUrls){
+    for(const mkProxy of proxies){
+      try{
+        const resp=await fetch(mkProxy(cmeUrl),{signal:AbortSignal.timeout(6000)});
+        const wrapper=await resp.json();
+        const raw=typeof wrapper.contents==='string'?wrapper.contents:JSON.stringify(wrapper);
+        const cmeData=JSON.parse(raw);
+        console.log('CME raw response from',cmeUrl,':',cmeData);
+
+        if(cmeData && typeof cmeData==='object'){
+          const probs=parseCmeData(cmeData);
+          if(probs){
+            FW=probs;
+            fwLive=true;
+            const now=new Date();
+            localStorage.setItem('fw_data',JSON.stringify({probs:FW,ts:Date.now(),source:'CME FedWatch API'}));
+            updateFwUI(true,'CME FedWatch API 自動抓取',now);
+            updateFwCard();
+            renderFwTable();
+            go();
+            return;
+          }
+        }
+      }catch(e){
+        console.log('FedWatch proxy attempt failed:',cmeUrl,e.message);
+      }
+    }
+  }
+
+  // All auto-fetch failed — use defaults with snapshot date
+  updateFwUI(false,`自動抓取失敗，使用預設快照（${FW_SNAPSHOT_DATE}）`,null);
+  updateFwCard();
+  renderFwTable();
+}
+
+function parseCmeData(data){
+  try{
+    // Navigate into possible response wrappers
+    let meetings=null;
+    if(Array.isArray(data)) meetings=data;
+    else if(data.meetings) meetings=data.meetings;
+    else if(data.data) meetings=Array.isArray(data.data)?data.data:null;
+    else if(data.body) meetings=Array.isArray(data.body)?data.body:null;
+
+    if(!meetings||!meetings.length) return null;
+
+    // Find the December 2026 meeting (9 Dec 2026)
+    let target=null;
+    for(const m of meetings){
+      const ds=JSON.stringify(m).toLowerCase();
+      if(ds.includes('2026') && (ds.includes('dec')||ds.includes('十二月')||ds.includes('12/'))){
+        target=m;break;
+      }
+    }
+    if(!target) target=meetings[meetings.length-1];
+
+    // Try to find probability distribution in various formats
+    const fields=['probabilities','cutProbabilities','distribution','probs','targetRateProbs','bpsProbabilities'];
+    let probField=null;
+    for(const f of fields){ if(target[f]){probField=target[f];break;} }
+
+    // Also try nested: target.data.probabilities etc.
+    if(!probField && target.data){
+      for(const f of fields){ if(target.data[f]){probField=target.data[f];break;} }
+    }
+    if(!probField) return null;
+
+    const result={};
+    if(Array.isArray(probField)){
+      // Array sorted from highest rate to lowest (or vice versa)
+      // Detect order: if first item has higher rate string, it's descending
+      probField.forEach((p,i)=>{
+        const val=typeof p==='object'?parseFloat(p.probability||p.prob||p.value||p.pct||0):parseFloat(p);
+        const bps=i*25;
+        if(bps<=125 && !isNaN(val)) result[bps]=val;
+      });
+    }else if(typeof probField==='object'){
+      // Object keyed by rate range like "350-375" or bps
+      const entries=Object.entries(probField);
+      // Sort by key descending (highest rate = no change)
+      entries.sort((a,b)=>parseFloat(b[0])-parseFloat(a[0]));
+      entries.forEach(([k,v],i)=>{
+        const bps=i*25;
+        if(bps<=125) result[bps]=parseFloat(v);
+      });
+    }
+
+    const vals=Object.values(result);
+    if(vals.length>=3){
+      const sum=vals.reduce((a,b)=>a+b,0);
+      if(sum>50&&sum<150) return result;
+    }
+    return null;
+  }catch(e){
+    console.log('parseCmeData error:',e);
+    return null;
+  }
+}
+
+function updateFwUI(live,msg,date){
+  const notice=document.getElementById('fw-notice');
+  const dot=document.getElementById('fw-dot');
+  const badge=document.getElementById('fw-badge');
+  const srcDesc=document.getElementById('fw-src-desc');
+
+  const timeStr=date?` (${date.toLocaleDateString('zh-TW')} ${date.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})})`:'';
+
+  if(live){
+    dot.className='ldot';
+    badge.className='badge blive';
+    badge.textContent='LIVE';
+    notice.innerHTML=`<b>CME FedWatch 機率</b> — ${msg}${timeStr}。
+      如需更新請點擊「手動編輯機率」或重新整理頁面。
+      <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a>`;
+    srcDesc.textContent=msg+timeStr+'。';
+  }else{
+    dot.className='sdot';
+    badge.className='badge bstatic';
+    badge.textContent='快照';
+    notice.innerHTML=`<b>CME FedWatch 機率</b> — ${msg}。
+      可點擊「手動編輯機率」輸入最新數據，數據會自動儲存。
+      <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a>`;
+    srcDesc.textContent=msg+'。';
+  }
+}
+
+function updateFwCard(){
+  // Find highest probability scenario
+  let maxKey=0,maxVal=0;
+  for(const [k,v] of Object.entries(FW)){
+    if(v>maxVal){maxVal=v;maxKey=parseInt(k);}
+  }
+  const cuts=maxKey/25;
+  const label=cuts===0?'不降息':`降息 ${cuts}碼`;
+  document.getElementById('card-fw-top').textContent=label;
+  document.getElementById('card-fw-sub').textContent=`年底累計機率 ~${maxVal.toFixed(1)}%`;
+}
+
+// --- FedWatch Manual Editor ---
+function toggleFwEditor(){
+  const el=document.getElementById('fw-editor');
+  el.classList.toggle('open');
+  if(el.classList.contains('open')){
+    // Populate inputs with current values
+    [0,25,50,75,100,125].forEach(k=>{
+      document.getElementById('fw-in-'+k).value=(FW[k]||0).toFixed(1);
+    });
+  }
+}
+
+function applyFwManual(){
+  const newFW={};
+  [0,25,50,75,100,125].forEach(k=>{
+    newFW[k]=parseFloat(document.getElementById('fw-in-'+k).value)||0;
+  });
+  const sum=Object.values(newFW).reduce((a,b)=>a+b,0);
+  if(sum<1){
+    document.getElementById('fw-save-status').textContent='機率總和不可為 0';
+    return;
+  }
+  FW=newFW;
+  const now=new Date();
+  localStorage.setItem('fw_data',JSON.stringify({probs:FW,ts:Date.now(),source:'手動輸入'}));
+  updateFwUI(true,'手動輸入',now);
+  updateFwCard();
+  renderFwTable();
+  go();
+  document.getElementById('fw-editor').classList.remove('open');
+  document.getElementById('fw-save-status').textContent='';
+}
+
+// --- FedWatch Table ---
+let currentRateHi=3.75, currentRateLo=3.50; // updated by FRED fetch
+
+function renderFwTable(){
+  const body=document.getElementById('fw-table-body');
+  if(!body) return;
+  const baseHi=currentRateHi, baseLo=currentRateLo;
+  const rows=[
+    {key:0,   label:'維持不變',  cuts:0},
+    {key:25,  label:'降息 1 碼', cuts:1},
+    {key:50,  label:'降息 2 碼', cuts:2},
+    {key:75,  label:'降息 3 碼', cuts:3},
+    {key:100, label:'降息 4 碼', cuts:4},
+    {key:125, label:'降息 5 碼', cuts:5},
+  ];
+  const maxProb=Math.max(...rows.map(r=>FW[r.key]||0));
+  let html='';
+  rows.forEach(r=>{
+    const prob=(FW[r.key]||0);
+    const lo=(baseLo - r.cuts*0.25).toFixed(2);
+    const hi=(baseHi - r.cuts*0.25).toFixed(2);
+    const bps=r.cuts*25;
+    const barW=maxProb>0?(prob/maxProb*100):0;
+    const isMax=prob===maxProb&&prob>0;
+    html+=`<tr class="${isMax?'fw-highlight':''}">
+      <td>${r.label}</td>
+      <td class="fw-range">${lo}–${hi}%</td>
+      <td>${bps===0?'—':'−'+bps+' bps'}</td>
+      <td>
+        <div class="fw-bar-cell">
+          <div class="fw-bar" style="width:${barW}%"></div>
+          <span class="fw-pct">${prob.toFixed(1)}%</span>
+        </div>
+      </td>
+    </tr>`;
+  });
+  // Total row
+  const total=rows.reduce((a,r)=>a+(FW[r.key]||0),0);
+  html+=`<tr style="border-top:2px solid var(--border2)">
+    <td colspan="3" style="text-align:right;color:var(--text3);font-weight:400">合計</td>
+    <td><div class="fw-bar-cell"><span class="fw-pct" style="margin-left:auto">${total.toFixed(1)}%</span></div></td>
+  </tr>`;
+  body.innerHTML=html;
+}
+
+// --- Calc & Render ---
+function pct(v,a,b){return(v-a)/(b-a)*100}
+function go(){
+  S.ytm=+document.getElementById('ytm-s').value;
+  S.fee=+document.getElementById('fee-s').value;
+  S.dur=+document.getElementById('dur-s').value;
+  document.getElementById('ytm-v').textContent=S.ytm.toFixed(1)+'%';
+  document.getElementById('fee-v').textContent=S.fee.toFixed(2)+'%';
+  document.getElementById('dur-v').textContent=S.dur.toFixed(1)+'年';
+  document.getElementById('ytm-f').style.width=pct(S.ytm,1,15)+'%';
+  document.getElementById('fee-f').style.width=pct(S.fee,0,2)+'%';
+  document.getElementById('dur-f').style.width=pct(S.dur,.5,30)+'%';
+  const md=S.dur/(1+S.ytm/100);
+  document.getElementById('mdnote').textContent=`修正存續期 ≈ ${md.toFixed(2)} 年`;
+  document.getElementById('pnote').textContent=`YTM ${S.ytm.toFixed(1)}% · 費用 ${S.fee.toFixed(2)}% · Duration ${S.dur.toFixed(1)}年 · 9個月`;
+  document.getElementById('rnote').textContent=`Duration ${S.dur.toFixed(1)}年 · 持有9個月`;
+  render();
+}
+
+// Base case = dot plot median (降息一碼, -25bps)
+// Price change is relative to what's already priced in
+const BASE_BPS=-25;
+function calc(bps){
+  const md=S.dur/(1+S.ytm/100);
+  const surprise=bps-BASE_BPS; // deviation from base case
+  const price=-md*(surprise/10000)*100;
+  const income=(S.ytm-S.fee)*HOLD;
+  return{income,price,total:income+price};
+}
+
+function render(){
+  const body=document.getElementById('tbody');
+  body.innerHTML='';
+  let lastG=null;
+  SC.forEach(s=>{
+    if(s.g!==lastG){
+      const sep=document.createElement('div');
+      sep.className='row sep';
+      sep.innerHTML=`<div class="seplabel">${DSEP[s.g]}</div>`;
+      body.appendChild(sep);
+      lastG=s.g;
+    }
+    const r=calc(s.bps);
+    const pos=r.total>=0;
+    const bw=Math.min(Math.abs(r.total)/MBAR*70,70);
+    const prob=s.fw!==undefined?FW[s.fw]:null;
+    const row=document.createElement('div');
+    row.className='row'+(s.base?' base':'');
+    const baseTag=s.base?'<span class="base-tag">Base Case</span>':'';
+    row.innerHTML=`
+      <div>
+        <div class="sname"><span class="sdot2" style="background:${DCOL[s.g]}"></span>${s.label}${baseTag}</div>
+        <div class="snote">${s.note}</div>
+      </div>
+      <div class="mono pos">+${r.income.toFixed(2)}%</div>
+      <div class="mono ${r.price>=0?'pos':'neg'}">${r.price>=0?'+':''}${r.price.toFixed(2)}%</div>
+      <div class="monolg ${pos?'pos':'neg'}">${pos?'+':''}${r.total.toFixed(2)}%</div>
+      <div class="barcell">
+        <div class="bneg">${!pos?`<div class="bseg" style="width:${bw}px;background:linear-gradient(90deg,#86efac,#22c55e)"></div>`:''}</div>
+        <div class="bctr"></div>
+        <div class="bpos">${pos?`<div class="bseg" style="width:${bw}px;background:linear-gradient(90deg,#ef4444,#fca5a5)"></div>`:''}</div>
+      </div>
+      <div style="text-align:center">${prob!=null?`<span class="pbadge">${prob.toFixed(1)}%</span>`:`<span class="pnone">—</span>`}</div>
+    `;
+    body.appendChild(row);
+  });
+
+  // Base case (dot plot median: -25bps)
+  const baseR=calc(-25);
+  const baseEl=document.getElementById('base-val');
+  baseEl.textContent=(baseR.total>=0?'+':'')+baseR.total.toFixed(2)+'%';
+  baseEl.style.color=baseR.total>=0?'var(--red)':'var(--green)';
+
+  // Expected (probability-weighted)
+  const fws=SC.filter(s=>s.fw!==undefined);
+  const tot=fws.reduce((a,s)=>a+(FW[s.fw]||0),0);
+  const exp=tot>0?fws.reduce((a,s)=>a+((FW[s.fw]||0)/tot)*calc(s.bps).total,0):0;
+  const el=document.getElementById('eval');
+  el.textContent=(exp>=0?'+':'')+exp.toFixed(2)+'%';
+  el.style.color=exp>=0?'var(--red)':'var(--green)';
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  renderFwTable();
+  go();
+  fetchFred();
+  fetchFedWatch();
+});
+</script>
+</body>
+</html>
