@@ -1,0 +1,49 @@
+name: Update FedWatch Data
+
+on:
+  schedule:
+    # Run every 4 hours on weekdays (UTC: 13:00, 17:00, 21:00 = US market hours)
+    - cron: '0 13,17,21 * * 1-5'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Scrape CME FedWatch
+        run: node scripts/scrape-fedwatch.js
+
+      - name: Upload debug artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-scrape
+          path: |
+            data/debug-screenshot.png
+            data/debug-page-text.txt
+          retention-days: 7
+
+      - name: Commit and push if data changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/fedwatch.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update FedWatch data $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push
+          fi
