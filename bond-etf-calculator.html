@@ -224,7 +224,7 @@
       <div class="clabel">FedWatch 最高機率情境</div>
       <div class="cvalue" id="card-fw-top">降息 1碼</div>
       <div class="csub" id="card-fw-sub">年底累計機率 ~34.5%</div>
-      <div class="csrc"><span id="fw-dot" class="sdot"></span><span id="fw-src-label">CME FedWatch</span></div>
+      <div class="csrc"><span id="fw-dot" class="sdot"></span><span id="fw-src-label">Fed Funds Futures</span></div>
     </div>
     <div class="card">
       <div class="clabel">FRED 數據更新</div>
@@ -238,7 +238,7 @@
   <div class="notice">
     <span style="font-size:18px;flex-shrink:0" id="fw-icon">📡</span>
     <div class="ntxt" id="fw-notice">
-      <b>CME FedWatch 機率</b>正在自動抓取中...
+      <b>FedWatch 利率機率</b>正在從 Fed Funds Futures 即時計算中...
     </div>
     <button class="fw-toggle-btn" onclick="toggleFwEditor()">手動編輯機率</button>
   </div>
@@ -268,14 +268,7 @@
     <div style="font-size:11px;color:var(--text4);margin-bottom:4px;font-family:'IBM Plex Mono',monospace">
       請至 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank" style="color:var(--accent)">CME FedWatch Tool ↗</a> 查看最新機率後填入
     </div>
-    <div class="fw-grid">
-      <div class="fw-item"><label>不降息</label><input type="number" id="fw-in-0" step="0.1" min="0" max="100"></div>
-      <div class="fw-item"><label>降息 1 碼</label><input type="number" id="fw-in-25" step="0.1" min="0" max="100"></div>
-      <div class="fw-item"><label>降息 2 碼</label><input type="number" id="fw-in-50" step="0.1" min="0" max="100"></div>
-      <div class="fw-item"><label>降息 3 碼</label><input type="number" id="fw-in-75" step="0.1" min="0" max="100"></div>
-      <div class="fw-item"><label>降息 4 碼</label><input type="number" id="fw-in-100" step="0.1" min="0" max="100"></div>
-      <div class="fw-item"><label>降息 5 碼</label><input type="number" id="fw-in-125" step="0.1" min="0" max="100"></div>
-    </div>
+    <div class="fw-grid" id="fw-editor-grid"></div>
     <div class="fw-actions">
       <button class="fw-btn" onclick="applyFwManual()">套用並儲存</button>
       <button class="fw-btn sec" onclick="toggleFwEditor()">取消</button>
@@ -357,7 +350,7 @@
     </div>
     <div class="srcrow">
       <span class="badge blive" id="fw-badge">LIVE</span>
-      <div class="srctext"><b>CME FedWatch 機率</b> — <span id="fw-src-desc">自動抓取中...</span> 最新機率請至 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a></div>
+      <div class="srctext"><b>FedWatch 利率機率</b> — <span id="fw-src-desc">自動計算中...</span> 基於 30-Day Fed Funds Futures（Yahoo Finance），使用 Poisson Binomial 模型計算。對照 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a></div>
     </div>
     <div class="srcrow">
       <span class="badge bstatic">固定</span>
@@ -374,26 +367,35 @@
 <script>
 const HOLD=9/12,MBAR=10;
 
-// Default FedWatch probabilities — CME FedWatch 2026/3/6 snapshot (Dec 9 meeting)
-// 350-375(不變):15.5%, 325-350(降1碼):34.5%, 300-325(降2碼):31.2%,
-// 275-300(降3碼):14.6%, 250-275(降4碼):3.7%, 225-250(降5碼):0.5%
+// Default FedWatch probabilities — fallback snapshot
 const FW_DEFAULT={0:15.5,25:34.5,50:31.2,75:14.6,100:3.7,125:0.5};
 const FW_SNAPSHOT_DATE='2026-03-06';
 let FW=Object.assign({},FW_DEFAULT);
 let fwLive=false;
 
-// Scenarios: ordered from most cuts (top) to most hikes (bottom)
-const SC=[
-  {bps:-125,label:'降息五碼', note:'極度鴿派',       g:'cut',fw:125},
-  {bps:-100,label:'降息四碼', note:'積極降息',        g:'cut',fw:100},
-  {bps:-75, label:'降息三碼', note:'偏鴿派情境',     g:'cut',fw:75},
-  {bps:-50, label:'降息二碼', note:'市場最高機率',    g:'cut',fw:50},
-  {bps:-25, label:'降息一碼', note:'點陣圖中位數',    g:'cut',fw:25,base:true},
-  {bps:0,   label:'維持利率不變',note:'高通膨/強就業情境',g:'hold',fw:0},
-  {bps:25,  label:'升息一碼', note:'超預期轉向',      g:'hike'},
-  {bps:50,  label:'升息二碼', note:'極度鷹派',        g:'hike'},
-  {bps:75,  label:'升息三碼', note:'尾端鷹派風險',    g:'hike'},
-];
+// Build scenarios dynamically from FW keys + fixed hike scenarios
+function buildScenarios(){
+  const cutKeys=[...new Set([0,25,50,75,100,125,...Object.keys(FW).map(Number)])].filter(k=>k>=0).sort((a,b)=>b-a);
+  const cutLabels={0:'維持利率不變',25:'降息一碼',50:'降息二碼',75:'降息三碼',100:'降息四碼',125:'降息五碼',150:'降息六碼',175:'降息七碼'};
+  const cutNotes={0:'高通膨/強就業情境',25:'點陣圖中位數',50:'偏鴿派情境',75:'積極降息',100:'大幅降息',125:'極度鴿派',150:'超鴿派',175:'極端鴿派'};
+  const sc=[];
+  for(const k of cutKeys){
+    const cuts=k/25;
+    sc.push({
+      bps:-k,
+      label:cutLabels[k]||`降息${cuts}碼`,
+      note:cutNotes[k]||`累計降息 ${k}bps`,
+      g:k>0?'cut':'hold',
+      fw:k,
+      base:k===25
+    });
+  }
+  sc.push({bps:25,label:'升息一碼',note:'超預期轉向',g:'hike'});
+  sc.push({bps:50,label:'升息二碼',note:'極度鷹派',g:'hike'});
+  sc.push({bps:75,label:'升息三碼',note:'尾端鷹派風險',g:'hike'});
+  return sc;
+}
+let SC=buildScenarios();
 const DCOL={cut:'#60a5fa',hold:'#94a3b8',hike:'#f87171'};
 const DSEP={cut:'▼ 降息情境（FedWatch 預期）',hold:'─ 持平情境',hike:'▲ 升息情境（尾端風險）'};
 let S={ytm:6,fee:.8,dur:9};
@@ -406,33 +408,52 @@ function toggleTheme(){
 
 // --- FRED API ---
 async function fetchFred(){
-  const url='https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key=4ece56db30dab72a6c8b3abe1db7dc6c&file_type=json&sort_order=desc&limit=1';
+  // Try JSON API first, then CSV fallback
+  let v=null, dateStr=null;
   try{
-    const d=await(await fetch(url)).json();
-    const obs=d.observations[0];
-    const v=parseFloat(obs.value);
+    const url='https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key=4ece56db30dab72a6c8b3abe1db7dc6c&file_type=json&sort_order=desc&limit=1';
+    const d=await(await fetch(url,{signal:AbortSignal.timeout(5000)})).json();
+    if(d.observations){
+      const obs=d.observations[0];
+      v=parseFloat(obs.value);
+      dateStr=obs.date;
+    }
+  }catch(_){}
+  // CSV fallback (no API key needed)
+  if(!v){
+    try{
+      const resp=await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS&cosd=2025-01-01',{signal:AbortSignal.timeout(5000)});
+      const text=await resp.text();
+      const lines=text.trim().split('\n');
+      const last=lines[lines.length-1].split(',');
+      dateStr=last[0]; v=parseFloat(last[1]);
+    }catch(_){}
+  }
+  if(v){
     const hi=Math.ceil(v*4)/4,lo=hi-.25;
     currentRateHi=hi; currentRateLo=lo;
     document.getElementById('card-rate').textContent=v.toFixed(2)+'%';
     document.getElementById('card-range').textContent=`目標區間 ${lo.toFixed(2)}–${hi.toFixed(2)}%`;
-    renderFwTable(); // re-render with actual rate
-    const dt=new Date(obs.date);
-    document.getElementById('card-date').textContent=dt.toLocaleDateString('zh-TW',{year:'numeric',month:'long'});
-  }catch(_){
-    document.getElementById('card-rate').textContent='3.63%';
+    renderFwTable();
+    if(dateStr){
+      const dt=new Date(dateStr);
+      document.getElementById('card-date').textContent=dt.toLocaleDateString('zh-TW',{year:'numeric',month:'long'});
+    }
+  }else{
+    document.getElementById('card-rate').textContent='3.64%';
     document.getElementById('card-range').textContent='目標區間 3.50–3.75%';
-    document.getElementById('card-date').textContent='2026年1月';
+    document.getElementById('card-date').textContent='2026年2月';
   }
 }
 
-// --- CME FedWatch Auto-Fetch ---
+// --- FedWatch Auto-Fetch via Netlify Function (Fed Funds Futures) ---
 async function fetchFedWatch(){
-  // Try loading from localStorage first
+  // Try loading from localStorage first (cache for 30 min)
   const cached=localStorage.getItem('fw_data');
   if(cached){
     try{
       const c=JSON.parse(cached);
-      if(c.ts && Date.now()-c.ts < 12*60*60*1000){
+      if(c.ts && Date.now()-c.ts < 30*60*1000){
         FW=c.probs;
         updateFwUI(true, c.source||'localStorage 快取', new Date(c.ts));
         updateFwCard();
@@ -443,113 +464,38 @@ async function fetchFedWatch(){
     }catch(_){}
   }
 
-  // Try multiple CME API endpoints via CORS proxies
-  const cmeUrls=[
-    'https://www.cmegroup.com/services/fedWatchTool/v2/CMEFedWatchTool.json',
-    'https://www.cmegroup.com/CmeWS/mvc/FedWatch/FedWatchData',
-  ];
-  const proxies=[
-    url=>'https://api.allorigins.win/get?url='+encodeURIComponent(url),
-    url=>'https://corsproxy.io/?url='+encodeURIComponent(url),
-  ];
+  try{
+    const resp=await fetch('/.netlify/functions/fedwatch',{signal:AbortSignal.timeout(15000)});
+    const data=await resp.json();
+    console.log('FedWatch function response:',data);
 
-  for(const cmeUrl of cmeUrls){
-    for(const mkProxy of proxies){
-      try{
-        const resp=await fetch(mkProxy(cmeUrl),{signal:AbortSignal.timeout(6000)});
-        const wrapper=await resp.json();
-        const raw=typeof wrapper.contents==='string'?wrapper.contents:JSON.stringify(wrapper);
-        const cmeData=JSON.parse(raw);
-        console.log('CME raw response from',cmeUrl,':',cmeData);
-
-        if(cmeData && typeof cmeData==='object'){
-          const probs=parseCmeData(cmeData);
-          if(probs){
-            FW=probs;
-            fwLive=true;
-            const now=new Date();
-            localStorage.setItem('fw_data',JSON.stringify({probs:FW,ts:Date.now(),source:'CME FedWatch API'}));
-            updateFwUI(true,'CME FedWatch API 自動抓取',now);
-            updateFwCard();
-            renderFwTable();
-            go();
-            return;
-          }
-        }
-      }catch(e){
-        console.log('FedWatch proxy attempt failed:',cmeUrl,e.message);
-      }
+    if(data.probabilities && Object.keys(data.probabilities).length>=2){
+      FW=data.probabilities;
+      fwLive=true;
+      const now=new Date();
+      const isCme=data.method==='cme_direct';
+      const srcLabel=isCme
+        ? 'CME FedWatch API 即時抓取'
+        : `Fed Funds Futures 近似計算（${data.meetingsUsed} 場 FOMC，可能與 CME 有 1-3% 誤差）`;
+      localStorage.setItem('fw_data',JSON.stringify({
+        probs:FW, ts:Date.now(),
+        source:srcLabel, method:data.method
+      }));
+      SC=buildScenarios();
+      updateFwUI(true, srcLabel, now);
+      updateFwCard();
+      renderFwTable();
+      go();
+      return;
     }
+  }catch(e){
+    console.log('FedWatch function failed:',e.message);
   }
 
-  // All auto-fetch failed — use defaults with snapshot date
-  updateFwUI(false,`自動抓取失敗，使用預設快照（${FW_SNAPSHOT_DATE}）`,null);
+  // Fallback to defaults
+  updateFwUI(false,`自動計算失敗，使用預設快照（${FW_SNAPSHOT_DATE}）`,null);
   updateFwCard();
   renderFwTable();
-}
-
-function parseCmeData(data){
-  try{
-    // Navigate into possible response wrappers
-    let meetings=null;
-    if(Array.isArray(data)) meetings=data;
-    else if(data.meetings) meetings=data.meetings;
-    else if(data.data) meetings=Array.isArray(data.data)?data.data:null;
-    else if(data.body) meetings=Array.isArray(data.body)?data.body:null;
-
-    if(!meetings||!meetings.length) return null;
-
-    // Find the December 2026 meeting (9 Dec 2026)
-    let target=null;
-    for(const m of meetings){
-      const ds=JSON.stringify(m).toLowerCase();
-      if(ds.includes('2026') && (ds.includes('dec')||ds.includes('十二月')||ds.includes('12/'))){
-        target=m;break;
-      }
-    }
-    if(!target) target=meetings[meetings.length-1];
-
-    // Try to find probability distribution in various formats
-    const fields=['probabilities','cutProbabilities','distribution','probs','targetRateProbs','bpsProbabilities'];
-    let probField=null;
-    for(const f of fields){ if(target[f]){probField=target[f];break;} }
-
-    // Also try nested: target.data.probabilities etc.
-    if(!probField && target.data){
-      for(const f of fields){ if(target.data[f]){probField=target.data[f];break;} }
-    }
-    if(!probField) return null;
-
-    const result={};
-    if(Array.isArray(probField)){
-      // Array sorted from highest rate to lowest (or vice versa)
-      // Detect order: if first item has higher rate string, it's descending
-      probField.forEach((p,i)=>{
-        const val=typeof p==='object'?parseFloat(p.probability||p.prob||p.value||p.pct||0):parseFloat(p);
-        const bps=i*25;
-        if(bps<=125 && !isNaN(val)) result[bps]=val;
-      });
-    }else if(typeof probField==='object'){
-      // Object keyed by rate range like "350-375" or bps
-      const entries=Object.entries(probField);
-      // Sort by key descending (highest rate = no change)
-      entries.sort((a,b)=>parseFloat(b[0])-parseFloat(a[0]));
-      entries.forEach(([k,v],i)=>{
-        const bps=i*25;
-        if(bps<=125) result[bps]=parseFloat(v);
-      });
-    }
-
-    const vals=Object.values(result);
-    if(vals.length>=3){
-      const sum=vals.reduce((a,b)=>a+b,0);
-      if(sum>50&&sum<150) return result;
-    }
-    return null;
-  }catch(e){
-    console.log('parseCmeData error:',e);
-    return null;
-  }
 }
 
 function updateFwUI(live,msg,date){
@@ -564,17 +510,17 @@ function updateFwUI(live,msg,date){
     dot.className='ldot';
     badge.className='badge blive';
     badge.textContent='LIVE';
-    notice.innerHTML=`<b>CME FedWatch 機率</b> — ${msg}${timeStr}。
+    notice.innerHTML=`<b>FedWatch 利率機率</b> — ${msg}${timeStr}。
       如需更新請點擊「手動編輯機率」或重新整理頁面。
-      <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a>`;
+      <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">對照 CME FedWatch ↗</a>`;
     srcDesc.textContent=msg+timeStr+'。';
   }else{
     dot.className='sdot';
     badge.className='badge bstatic';
     badge.textContent='快照';
-    notice.innerHTML=`<b>CME FedWatch 機率</b> — ${msg}。
+    notice.innerHTML=`<b>FedWatch 利率機率</b> — ${msg}。
       可點擊「手動編輯機率」輸入最新數據，數據會自動儲存。
-      <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">CME FedWatch Tool ↗</a>`;
+      <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank">對照 CME FedWatch ↗</a>`;
     srcDesc.textContent=msg+'。';
   }
 }
@@ -585,7 +531,7 @@ function updateFwCard(){
   for(const [k,v] of Object.entries(FW)){
     if(v>maxVal){maxVal=v;maxKey=parseInt(k);}
   }
-  const cuts=maxKey/25;
+  const cuts=Math.round(maxKey/25);
   const label=cuts===0?'不降息':`降息 ${cuts}碼`;
   document.getElementById('card-fw-top').textContent=label;
   document.getElementById('card-fw-sub').textContent=`年底累計機率 ~${maxVal.toFixed(1)}%`;
@@ -596,17 +542,19 @@ function toggleFwEditor(){
   const el=document.getElementById('fw-editor');
   el.classList.toggle('open');
   if(el.classList.contains('open')){
-    // Populate inputs with current values
-    [0,25,50,75,100,125].forEach(k=>{
-      document.getElementById('fw-in-'+k).value=(FW[k]||0).toFixed(1);
-    });
+    const grid=document.getElementById('fw-editor-grid');
+    const keys=[...new Set([0,25,50,75,100,125,...Object.keys(FW).map(Number)])].filter(k=>k>=0).sort((a,b)=>a-b);
+    grid.innerHTML=keys.map(k=>`<div class="fw-item"><label>${k===0?'不降息':'降息 '+k/25+' 碼'}</label><input type="number" id="fw-in-${k}" step="0.1" min="0" max="100" value="${(FW[k]||0).toFixed(1)}"></div>`).join('');
   }
 }
 
 function applyFwManual(){
   const newFW={};
-  [0,25,50,75,100,125].forEach(k=>{
-    newFW[k]=parseFloat(document.getElementById('fw-in-'+k).value)||0;
+  const inputs=document.querySelectorAll('#fw-editor-grid input[id^="fw-in-"]');
+  inputs.forEach(inp=>{
+    const k=parseInt(inp.id.replace('fw-in-',''));
+    const v=parseFloat(inp.value)||0;
+    if(v>0) newFW[k]=v;
   });
   const sum=Object.values(newFW).reduce((a,b)=>a+b,0);
   if(sum<1){
@@ -614,6 +562,7 @@ function applyFwManual(){
     return;
   }
   FW=newFW;
+  SC=buildScenarios();
   const now=new Date();
   localStorage.setItem('fw_data',JSON.stringify({probs:FW,ts:Date.now(),source:'手動輸入'}));
   updateFwUI(true,'手動輸入',now);
@@ -631,14 +580,13 @@ function renderFwTable(){
   const body=document.getElementById('fw-table-body');
   if(!body) return;
   const baseHi=currentRateHi, baseLo=currentRateLo;
-  const rows=[
-    {key:0,   label:'維持不變',  cuts:0},
-    {key:25,  label:'降息 1 碼', cuts:1},
-    {key:50,  label:'降息 2 碼', cuts:2},
-    {key:75,  label:'降息 3 碼', cuts:3},
-    {key:100, label:'降息 4 碼', cuts:4},
-    {key:125, label:'降息 5 碼', cuts:5},
-  ];
+  // Dynamically build rows from FW keys
+  const allKeys=[...new Set([0,25,50,75,100,125,...Object.keys(FW).map(Number)])].filter(k=>k>=0).sort((a,b)=>a-b);
+  const rows=allKeys.map(k=>({
+    key:k,
+    label:k===0?'維持不變':`降息 ${k/25} 碼`,
+    cuts:k/25
+  }));
   const maxProb=Math.max(...rows.map(r=>FW[r.key]||0));
   let html='';
   rows.forEach(r=>{

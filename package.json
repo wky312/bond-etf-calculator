@@ -1,0 +1,24 @@
+{
+  "name": "bond-etf-calculator",
+  "version": "1.0.0",
+  "description": "互動式網頁工具，計算債券 ETF 在不同聯準會利率情境下，2026年4月至12月持有期間的預期損益。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wky312/bond-etf-calculator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/wky312/bond-etf-calculator/issues"
+  },
+  "homepage": "https://github.com/wky312/bond-etf-calculator#readme",
+  "devDependencies": {
+    "netlify-cli": "^24.0.1"
+  }
+}
