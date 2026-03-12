@@ -164,6 +164,10 @@
   .fw-status{font-size:11px;color:var(--text4);font-family:'IBM Plex Mono',monospace}
   .fw-toggle-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border2);background:var(--bg2);color:var(--text3);cursor:pointer;transition:all .2s;flex-shrink:0}
   .fw-toggle-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .fw-fetch-btn{font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:600;padding:12px 32px;border-radius:10px;border:none;background:var(--accent);color:#fff;cursor:pointer;transition:all .2s;letter-spacing:.5px}
+  .fw-fetch-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
+  .fw-fetch-btn:active{transform:translateY(0)}
+  .fw-fetch-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;filter:none}
 
   /* Sources */
   .src{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px}
@@ -222,8 +226,8 @@
     </div>
     <div class="card">
       <div class="clabel">FedWatch 最高機率情境</div>
-      <div class="cvalue" id="card-fw-top">降息 1碼</div>
-      <div class="csub" id="card-fw-sub">年底累計機率 ~34.5%</div>
+      <div class="cvalue" id="card-fw-top">尚未載入</div>
+      <div class="csub" id="card-fw-sub">請點擊「更新利率機率」</div>
       <div class="csrc"><span id="fw-dot" class="sdot"></span><span id="fw-src-label">Fed Funds Futures</span></div>
     </div>
     <div class="card">
@@ -234,17 +238,24 @@
     </div>
   </div>
 
-  <!-- FedWatch Notice -->
-  <div class="notice">
+  <!-- FedWatch Fetch Button -->
+  <div class="notice" id="fw-fetch-area" style="flex-direction:column;align-items:center;gap:12px;padding:24px">
+    <div style="font-size:18px">📡</div>
+    <div style="font-size:15px;font-weight:600;color:var(--text1)">CME FedWatch 年底利率機率</div>
+    <div style="font-size:12px;color:var(--text4);text-align:center">點擊下方按鈕從伺服器抓取最新 FedWatch 機率數據</div>
+    <button class="fw-fetch-btn" id="fw-fetch-btn" onclick="handleFetchClick()">更新利率機率</button>
+    <div id="fw-fetch-status" style="font-size:11px;color:var(--text4);min-height:16px"></div>
+  </div>
+
+  <!-- FedWatch Notice (hidden until fetched) -->
+  <div class="notice" id="fw-notice-area" style="display:none">
     <span style="font-size:18px;flex-shrink:0" id="fw-icon">📡</span>
-    <div class="ntxt" id="fw-notice">
-      <b>CME FedWatch 機率</b>正在載入中...
-    </div>
+    <div class="ntxt" id="fw-notice"></div>
     <button class="fw-toggle-btn" onclick="toggleFwEditor()">手動編輯機率</button>
   </div>
 
-  <!-- FedWatch Probability Table -->
-  <div class="panel" style="margin-bottom:24px">
+  <!-- FedWatch Probability Table (hidden until fetched) -->
+  <div class="panel fw-dependent" style="margin-bottom:24px;display:none">
     <div class="phead">
       <div class="ptitle">CME FedWatch 年底利率機率分布</div>
       <div class="pnote">對照 <a href="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" target="_blank" style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent)">CME FedWatch Tool ↗</a></div>
@@ -306,8 +317,8 @@
     </div>
   </div>
 
-  <!-- Results -->
-  <div class="rpanel">
+  <!-- Results (hidden until fetched) -->
+  <div class="rpanel fw-dependent" style="display:none">
     <div class="rhead">
       <div class="ptitle">情境分析結果</div>
       <div class="pnote" id="rnote">Duration 9.0年 · 持有9個月</div>
@@ -323,8 +334,8 @@
     <div id="tbody"></div>
   </div>
 
-  <!-- Base Case -->
-  <div class="basebox">
+  <!-- Base Case (hidden until fetched) -->
+  <div class="basebox fw-dependent" style="display:none">
     <div>
       <div class="ptitle" style="margin-bottom:6px">Base Case（點陣圖中位數：降息一碼）</div>
       <div style="font-size:12px;color:var(--text4)">Fed SEP 2025年12月預測，2026年底目標利率 3.25–3.50%</div>
@@ -332,8 +343,8 @@
     <div class="eval" id="base-val">—</div>
   </div>
 
-  <!-- Expected -->
-  <div class="ebox">
+  <!-- Expected (hidden until fetched) -->
+  <div class="ebox fw-dependent" style="display:none">
     <div>
       <div class="ptitle" style="margin-bottom:6px">機率加權預期報酬</div>
       <div style="font-size:12px;color:var(--text4)">以 FedWatch 各降息情境機率加權，不含升息尾端</div>
@@ -370,8 +381,9 @@ const HOLD=9/12,MBAR=10;
 // Default FedWatch probabilities — fallback snapshot
 const FW_DEFAULT={0:15.5,25:34.5,50:31.2,75:14.6,100:3.7,125:0.5};
 const FW_SNAPSHOT_DATE='2026-03-06';
-let FW=Object.assign({},FW_DEFAULT);
+let FW={};
 let fwLive=false;
+let fwLoaded=false;
 
 // Build scenarios dynamically from FW keys + fixed hike scenarios
 function buildScenarios(){
@@ -519,9 +531,37 @@ async function fetchFedWatch(){
   }
 
   // 3. Final fallback to hardcoded defaults
+  FW=Object.assign({},FW_DEFAULT);
+  SC=buildScenarios();
   updateFwUI(false,`自動抓取失敗，使用預設快照（${FW_SNAPSHOT_DATE}）`,null);
   updateFwCard();
   renderFwTable();
+  go();
+}
+
+function showFwSections(){
+  fwLoaded=true;
+  document.getElementById('fw-fetch-area').style.display='none';
+  document.getElementById('fw-notice-area').style.display='';
+  document.querySelectorAll('.fw-dependent').forEach(el=>el.style.display='');
+}
+
+async function handleFetchClick(){
+  const btn=document.getElementById('fw-fetch-btn');
+  const status=document.getElementById('fw-fetch-status');
+  btn.disabled=true;
+  btn.textContent='抓取中...';
+  status.textContent='正在連線伺服器取得最新資料...';
+  // Clear cache to force fresh fetch
+  localStorage.removeItem('fw_data');
+  try{
+    await fetchFedWatch();
+    showFwSections();
+  }catch(e){
+    status.textContent='抓取失敗：'+e.message;
+    btn.disabled=false;
+    btn.textContent='重試';
+  }
 }
 
 function updateFwUI(live,msg,date){
@@ -726,10 +766,7 @@ function render(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
-  renderFwTable();
-  go();
   fetchFred();
-  fetchFedWatch();
 });
 </script>
 </body>
