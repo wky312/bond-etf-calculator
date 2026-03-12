@@ -2,6 +2,11 @@
   publish = "."
   functions = "netlify/functions"
 
+[[redirects]]
+  from = "/"
+  to = "/bond-etf-calculator.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]
