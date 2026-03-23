@@ -1,10 +1,7 @@
 name: Update FedWatch Data
 
 on:
-  schedule:
-    # Run every 4 hours on weekdays (UTC: 13:00, 17:00, 21:00 = US market hours)
-    - cron: '0 13,17,21 * * 1-5'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch: # Allow manual trigger only (schedule disabled)
 
 jobs:
   scrape:
